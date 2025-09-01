@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import {
   OpenTelemetryModule,
   createOpenTelemetryConfigFromEnv,
@@ -8,6 +10,10 @@ import { EnhancedWinstonLoggerService } from '@/services/logger.service';
 import { MetricsService } from '@/services/metrics.service';
 import { TracingService } from '@/services/tracing.service';
 import { OpenTelemetryService } from '@/services/opentelemetry.service';
+
+// 读取实际的package.json版本
+const packageJson = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf-8'));
+const packageVersion = packageJson.version;
 
 describe('OpenTelemetryModule', () => {
   beforeEach(async () => {
@@ -144,13 +150,19 @@ describe('createOpenTelemetryConfigFromEnv', () => {
     delete process.env.OTEL_TRACING_SAMPLE_RATE;
     delete process.env.OTEL_METRICS_ENABLED;
     delete process.env.OTEL_METRICS_INTERVAL;
+    delete process.env.npm_package_name;
+    delete process.env.npm_package_version;
+    delete process.env.ENVIRONMENT;
+    delete process.env.OTEL_LOG_MAX_SIZE;
+    delete process.env.OTEL_LOG_MAX_FILES;
+    delete process.env.OTEL_LOG_DATE_PATTERN;
   });
 
   it('应该返回默认配置当没有环境变量时', () => {
     const config = createOpenTelemetryConfigFromEnv();
 
-    expect(config.serviceName).toBe('cl-nestjs-opentelemetry');
-    expect(config.serviceVersion).toBe('0.0.1');
+    expect(config.serviceName).toBe('unknown-service');
+    expect(config.serviceVersion).toBe('1.0.0');
     expect(config.environment).toBe('development');
     expect(config.logging?.console).toBe(true);
     expect(config.logging?.file).toBe(true);
@@ -227,19 +239,19 @@ describe('createOpenTelemetryConfigFromEnv', () => {
 
   it('应该使用npm包信息作为后备', () => {
     process.env.npm_package_name = 'my-app';
-    process.env.npm_package_version = '3.0.0';
+    process.env.npm_package_version = packageVersion;
 
     const config = createOpenTelemetryConfigFromEnv();
 
     expect(config.serviceName).toBe('my-app');
-    expect(config.serviceVersion).toBe('3.0.0');
+    expect(config.serviceVersion).toBe(packageVersion);
   });
 
   it('应该优先使用OTEL环境变量而不是npm变量', () => {
     process.env.OTEL_SERVICE_NAME = 'otel-service';
     process.env.npm_package_name = 'npm-service';
     process.env.OTEL_SERVICE_VERSION = '1.5.0';
-    process.env.npm_package_version = '2.0.0';
+    process.env.npm_package_version = packageVersion;
 
     const config = createOpenTelemetryConfigFromEnv();
 
