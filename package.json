@@ -50,10 +50,10 @@
   "type": "module",
   "sideEffects": false,
   "engines": {
-    "node": ">=18.0.0",
-    "pnpm": ">=8.0.0"
+    "node": ">=20.0.0",
+    "pnpm": ">=10.15.0"
   },
-  "packageManager": "pnpm@8.15.0",
+  "packageManager": "pnpm@10.15.0",
   "exports": {
     ".": {
       "import": {
