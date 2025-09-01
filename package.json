@@ -125,5 +125,9 @@
   },
   "directories": {
     "test": "tests"
+  },
+  "volta": {
+    "node": "22.18.0",
+    "pnpm": "10.15.0"
   }
 }
