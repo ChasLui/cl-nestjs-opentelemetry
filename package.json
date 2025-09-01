@@ -1,6 +1,6 @@
 {
   "name": "cl-nestjs-opentelemetry",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "一个全面的NestJS OpenTelemetry集成库，支持日志记录、指标和追踪功能",
   "repository": {
     "type": "git",
