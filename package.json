@@ -28,6 +28,7 @@
     "coverage": "vitest run --coverage",
     "prepare": "husky install",
     "release": "release-it",
+    "release:ci": "release-it --ci",
     "commitlint": "commitlint --edit"
   },
   "lint-staged": {
