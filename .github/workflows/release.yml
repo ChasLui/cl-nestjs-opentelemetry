@@ -130,6 +130,8 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           HUSKY: 0 # 在 CI 中禁用 Husky
+          CI: true
+          RELEASE_IT_CONFIG: ./.release-it.json
         run: |
           # Ensure Husky is completely disabled
           export HUSKY=0
@@ -150,9 +152,23 @@ jobs:
 
           # Run release-it with CI flag for automatic version determination
           echo "Running release-it with CI mode..."
-          pnpm release:ci --verbose
 
-          echo "✅ Semantic release completed successfully"
+          # Capture the exit code to handle potential errors gracefully
+          if pnpm release:ci --verbose; then
+            echo "✅ Semantic release completed successfully"
+          else
+            RELEASE_EXIT_CODE=$?
+            echo "⚠️  Release-it exited with code: $RELEASE_EXIT_CODE"
+
+            # Check if this is a recoverable error (e.g., version already exists)
+            if [ $RELEASE_EXIT_CODE -eq 1 ]; then
+              echo "❌ Release failed with exit code 1, may be due to version conflict or other error"
+              echo "Please check the logs above for details"
+            fi
+
+            # Don't exit immediately, let the workflow continue for error handling
+            exit $RELEASE_EXIT_CODE
+          fi
 
       - name: ⏭️  Skip Release
         if: steps.check-changes.outputs.should_release != 'true'
@@ -205,30 +221,50 @@ jobs:
           echo "- Any commit with \`BREAKING CHANGE:\` in body → **major** version bump" >> $GITHUB_STEP_SUMMARY
 
       - name: 🔄 Handle Version Conflict Recovery
-        if: failure() && contains(github.event.head_commit.message, 'cannot publish over the previously published versions')
+        if: failure()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          HUSKY: 0
+          CI: true
+          RELEASE_IT_CONFIG: ./.release-it.json
         run: |
-          echo "🔄 Detected version conflict, attempting recovery..."
+          echo "🔄 Attempting error recovery..."
 
-          # Get the next version that should be published
-          CURRENT_VERSION=$(node -p "JSON.parse(require('fs').readFileSync('./package.json', 'utf8')).version")
-          echo "Current version: $CURRENT_VERSION"
+          # Check the type of failure
+          if git log -1 --pretty=%B | grep -q "cannot publish over the previously published versions"; then
+            echo "🔄 Detected version conflict, attempting version bump recovery..."
 
-          # Extract version parts and increment patch version
-          MAJOR=$(echo $CURRENT_VERSION | cut -d. -f1)
-          MINOR=$(echo $CURRENT_VERSION | cut -d. -f2)
-          PATCH=$(echo $CURRENT_VERSION | cut -d. -f3)
+            # Get the next version that should be published
+            CURRENT_VERSION=$(node -p "JSON.parse(require('fs').readFileSync('./package.json', 'utf8')).version")
+            echo "Current version: $CURRENT_VERSION"
 
-          # Increment patch version
-          NEW_PATCH=$((PATCH + 1))
-          NEW_VERSION="$MAJOR.$MINOR.$NEW_PATCH"
+            # Extract version parts and increment patch version
+            MAJOR=$(echo $CURRENT_VERSION | cut -d. -f1)
+            MINOR=$(echo $CURRENT_VERSION | cut -d. -f2)
+            PATCH=$(echo $CURRENT_VERSION | cut -d. -f3)
 
-          echo "Attempting to bump to version: $NEW_VERSION"
+            # Increment patch version
+            NEW_PATCH=$((PATCH + 1))
+            NEW_VERSION="$MAJOR.$MINOR.$NEW_PATCH"
 
-          # Update package.json with new version
-          npm version $NEW_VERSION --no-git-tag-version
+            echo "Attempting to bump to version: $NEW_VERSION"
 
-          # Retry release with new version
-          pnpm release:ci --verbose
+            # Update package.json with new version
+            npm version $NEW_VERSION --no-git-tag-version
+
+            # Retry release with new version
+            if pnpm release:ci --verbose; then
+              echo "✅ Recovery release successful"
+            else
+              echo "❌ Recovery release also failed"
+              exit 1
+            fi
+          else
+            echo "❌ Non-recoverable error occurred, please check the logs above"
+            exit 1
+          fi
 
       - name: ❌ Release Failure Notification
         if: failure()
