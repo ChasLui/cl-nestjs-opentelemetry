@@ -1,5 +1,10 @@
 # Changelog
 
+## <small>0.1.1 (2025-09-01)</small>
+
+* fix: cd ([fb36d23](https://github.com/chaslui/cl-nestjs-opentelemetry/commit/fb36d23))
+* fix: cd ([f3de372](https://github.com/chaslui/cl-nestjs-opentelemetry/commit/f3de372))
+
 ## 0.1.0 (2025-09-01)
 
 - fix: cd ([f65ab67](https://github.com/chaslui/cl-nestjs-opentelemetry/commit/f65ab67))
