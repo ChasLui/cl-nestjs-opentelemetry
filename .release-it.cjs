@@ -1,6 +1,6 @@
 module.exports = {
   git: {
-    requireCleanWorkingDir: false, // 在 CI 环境中允许非干净工作目录
+    requireCleanWorkingDir: false,
     requireBranch: ['main', 'master'],
     commitMessage: 'chore: release v${version}',
     tagName: 'v${version}',

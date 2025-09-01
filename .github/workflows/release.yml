@@ -94,6 +94,10 @@ jobs:
             echo "version_synced=false" >> $GITHUB_OUTPUT
           fi
 
+          # Ensure we have a clean state for release-it
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
       - name: 🔍 Check for Releasable Changes
         id: check-changes
         run: |
@@ -127,10 +131,6 @@ jobs:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           HUSKY: 0 # 在 CI 中禁用 Husky
         run: |
-          echo "Configuring git for release..."
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-
           # Ensure Husky is completely disabled
           export HUSKY=0
           export CI=true
@@ -149,6 +149,7 @@ jobs:
           fi
 
           # Run release-it with CI flag for automatic version determination
+          echo "Running release-it with CI mode..."
           pnpm release:ci --verbose
 
           echo "✅ Semantic release completed successfully"
