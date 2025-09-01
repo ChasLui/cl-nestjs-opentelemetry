@@ -170,6 +170,23 @@ jobs:
             exit $RELEASE_EXIT_CODE
           fi
 
+      - name: 🚀 Create GitHub Release
+        if: success() && steps.check-changes.outputs.should_release == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Get the new version from package.json
+          NEW_VERSION=$(node -p "JSON.parse(require('fs').readFileSync('./package.json', 'utf8')).version")
+          echo "Creating GitHub release for version: v${NEW_VERSION}"
+
+          # Create GitHub release
+          gh release create "v${NEW_VERSION}" \
+            --title "v${NEW_VERSION}" \
+            --notes "Release v${NEW_VERSION}" \
+            --latest
+
+          echo "✅ GitHub release created successfully"
+
       - name: ⏭️  Skip Release
         if: steps.check-changes.outputs.should_release != 'true'
         run: |

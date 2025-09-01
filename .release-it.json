@@ -1,36 +1,24 @@
 {
-  "$schema": "https://unpkg.com/release-it/schema/release-it.json",
   "git": {
     "commitMessage": "chore: release v${version}",
     "tagName": "v${version}",
-    "tagAnnotation": "Release v${version}",
     "push": true,
     "requireCleanWorkingDir": false,
     "requireUpstream": false
   },
   "github": {
-    "release": true,
-    "releaseName": "v${version}",
-    "releaseNotes": null,
-    "draft": false,
-    "preRelease": false
+    "release": false
   },
   "npm": {
-    "publish": true,
-    "skipChecks": false,
-    "registry": "https://registry.npmjs.org/"
+    "publish": true
   },
   "plugins": {
     "@release-it/conventional-changelog": {
-      "preset": {
-        "name": "conventionalcommits"
-      },
+      "preset": "conventionalcommits",
       "infile": "CHANGELOG.md"
     }
   },
   "hooks": {
-    "before:init": [],
-    "after:bump": [],
-    "after:release": ["echo \"🎉 Successfully released ${name} v${version} to ${repo.repository}\""]
+    "after:release": "echo Successfully released cl-nestjs-opentelemetry v${version} to ChasLui/cl-nestjs-opentelemetry."
   }
 }
