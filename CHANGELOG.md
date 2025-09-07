@@ -1,5 +1,9 @@
 # Changelog
 
+## <small>0.1.3 (2025-09-07)</small>
+
+* fix: update interceptors to use factory providers and enhance error handling ([ccb00af](https://github.com/chaslui/cl-nestjs-opentelemetry/commit/ccb00af))
+
 ## <small>0.1.2 (2025-09-07)</small>
 
 * fix: docs ([6b551a7](https://github.com/chaslui/cl-nestjs-opentelemetry/commit/6b551a7))
