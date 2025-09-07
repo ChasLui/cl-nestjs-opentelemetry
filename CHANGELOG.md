@@ -1,5 +1,10 @@
 # Changelog
 
+## <small>0.1.2 (2025-09-07)</small>
+
+* fix: docs ([6b551a7](https://github.com/chaslui/cl-nestjs-opentelemetry/commit/6b551a7))
+* fix: 拦截错误 ([e91d8f7](https://github.com/chaslui/cl-nestjs-opentelemetry/commit/e91d8f7))
+
 ## <small>0.1.1 (2025-09-01)</small>
 
 * fix: cd ([fb36d23](https://github.com/chaslui/cl-nestjs-opentelemetry/commit/fb36d23))
