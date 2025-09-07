@@ -1,5 +1,5 @@
 import { DynamicModule, Global, Module } from '@nestjs/common';
-import { APP_INTERCEPTOR } from '@nestjs/core';
+import { APP_INTERCEPTOR, Reflector } from '@nestjs/core';
 import {
   OpenTelemetryConfig,
   OpenTelemetryModuleOptions,
@@ -30,6 +30,7 @@ export class OpenTelemetryModule {
           provide: OPENTELEMETRY_CONFIG,
           useValue: options.config,
         },
+        Reflector,
         EnhancedWinstonLoggerService,
         MetricsService,
         TracingService,
@@ -59,6 +60,7 @@ export class OpenTelemetryModule {
           useFactory: options.useFactory,
           inject: options.inject || [],
         },
+        Reflector,
         EnhancedWinstonLoggerService,
         MetricsService,
         TracingService,

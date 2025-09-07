@@ -1,7 +1,7 @@
 import { Injectable, NestInterceptor, ExecutionContext, CallHandler } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Observable } from 'rxjs';
-import { tap, catchError } from 'rxjs/operators';
+import { tap, catchError, finalize } from 'rxjs/operators';
 import { SpanStatusCode, SpanKind } from '@opentelemetry/api';
 import { JsonValue } from 'type-fest';
 import { TracingService } from '@/services/tracing.service';
@@ -114,10 +114,8 @@ export class TracingInterceptor implements NestInterceptor {
 
         throw error;
       }),
-      tap({
-        finalize: () => {
-          span.end();
-        },
+      finalize(() => {
+        span.end();
       }),
     );
   }
