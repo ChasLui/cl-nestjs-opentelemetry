@@ -24,7 +24,7 @@
 - 📁 **文件日志轮转** - 自动日志文件管理和轮转
 - 🐳 **Kubernetes 友好** - 专为容器化环境设计
 - 🔧 **TypeScript 支持** - 完整的类型定义和智能提示
-- ✅ **高质量代码** - 98.35% 测试覆盖率，290 个测试用例
+- ✅ **高质量代码** - 98.35% 测试覆盖率，290 个测试用例通过
 
 ## 项目结构
 
@@ -59,8 +59,9 @@ pnpm add cl-nestjs-opentelemetry
 
 **环境要求：**
 
-- Node.js >= 18.0.0
-- NestJS >= 9.0.0
+- Node.js >= 20.0.0
+- NestJS >= 9.0.0 (支持 9.x、10.x、11.x)
+- pnpm >= 10.15.0 (推荐)
 
 ## 快速开始
 
@@ -174,7 +175,7 @@ export class UserService {
       });
 
       // 数据库操作...
-      const user = await this.findUserInDatabase(id);
+      const user = { id, name: 'Test User', email: 'test@example.com' };
       return user;
     });
   }
@@ -190,6 +191,7 @@ export class UserService {
     });
 
     // 创建用户逻辑...
+    const newUser = { id: '123', ...userData };
     return newUser;
   }
 }
@@ -463,6 +465,7 @@ const activeSpan = this.tracingService.getActiveSpan();
 const httpSpan = this.tracingService.startHttpSpan('GET', '/api/users', {
   attributes: { 'custom.attribute': 'value' }
 });
+httpSpan.end(); // 记得结束 span
 ```
 
 ## 集成示例
@@ -470,7 +473,7 @@ const httpSpan = this.tracingService.startHttpSpan('GET', '/api/users', {
 ### 完整的微服务示例
 
 ```typescript
-import { Module, Controller, Get, Post, Body, Param } from '@nestjs/common';
+import { Module, Controller, Get, Post, Body, Param, Injectable } from '@nestjs/common';
 import {
   OpenTelemetryModule,
   EnhancedWinstonLoggerService,
@@ -683,7 +686,7 @@ const metricsService = app.get(MetricsService);
 const logger = app.get(EnhancedWinstonLoggerService);
 
 // 验证追踪器是否初始化
-console.log('Tracer initialized:', !!tracingService.getActiveSpan());
+console.log('Tracer initialized:', !!tracingService.getTracer());
 
 // 验证指标是否启用
 console.log('Metrics enabled:', !!metricsService.getMeter());
@@ -721,8 +724,8 @@ pnpm lint
 
 ### 开发环境要求
 
-- Node.js >= 18.0.0
-- pnpm >= 8.0.0
+- Node.js >= 20.0.0
+- pnpm >= 10.15.0
 - Git
 
 ### 开发流程
