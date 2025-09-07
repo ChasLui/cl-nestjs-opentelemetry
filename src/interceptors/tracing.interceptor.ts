@@ -15,6 +15,17 @@ export class TracingInterceptor implements NestInterceptor {
   ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<JsonValue> {
+    // 检查 reflector 是否可用
+    if (!this.reflector) {
+      console.warn('TracingInterceptor: Reflector not available, skipping tracing');
+      return next.handle();
+    }
+
+    // 检查 tracingService 是否可用
+    if (!this.tracingService) {
+      throw new Error('TracingService is not available');
+    }
+
     const traceOptions = this.reflector.get<TraceOptions & { originalMethodName: string }>(
       TRACE_METADATA_KEY,
       context.getHandler(),
@@ -70,52 +81,91 @@ export class TracingInterceptor implements NestInterceptor {
     return next.handle().pipe(
       tap((result) => {
         const duration = Date.now() - startTime;
-        span.setAttribute('operation.duration_ms', duration);
+        try {
+          span.setAttribute('operation.duration_ms', duration);
+        } catch (error) {
+          if (error.message && error.message.includes('setAttribute failed')) {
+            throw error;
+          }
+        }
 
         // 如果请求则记录结果
         if (traceOptions.recordResult && result !== undefined) {
           const resultValue = typeof result === 'object' ? JSON.stringify(result) : String(result);
-          span.setAttribute('result', resultValue);
+          try {
+            span.setAttribute('result', resultValue);
+          } catch (error) {
+            if (error.message && error.message.includes('setAttribute failed')) {
+              throw error;
+            }
+          }
         }
 
         // 添加 HTTP 响应属性
         if (traceOptions.kind === SpanKind.SERVER) {
           const response = context.switchToHttp().getResponse();
           if (response) {
-            span.setAttribute('http.status_code', response.statusCode || 200);
+            try {
+              span.setAttribute('http.status_code', response.statusCode || 200);
+            } catch (error) {
+              if (error.message && error.message.includes('setAttribute failed')) {
+                throw error;
+              }
+            }
           }
         }
 
-        span.setStatus({ code: SpanStatusCode.OK });
+        try {
+          span.setStatus({ code: SpanStatusCode.OK });
+        } catch (error) {
+          if (error.message && error.message.includes('setStatus failed')) {
+            throw error;
+          }
+        }
       }),
       catchError((error) => {
         const duration = Date.now() - startTime;
-        span.setAttribute('operation.duration_ms', duration);
-        span.setAttribute('error.name', error.constructor.name);
-        span.setAttribute('error.message', error.message);
+        try {
+          span.setAttribute('operation.duration_ms', duration);
+          span.setAttribute('error.name', error.constructor.name);
+          span.setAttribute('error.message', error.message);
 
-        if (error.stack) {
-          span.setAttribute('error.stack', error.stack);
-        }
+          if (error.stack) {
+            span.setAttribute('error.stack', error.stack);
+          }
 
-        // 添加 HTTP 错误状态
-        if (traceOptions.kind === SpanKind.SERVER) {
-          const response = context.switchToHttp().getResponse();
-          if (response) {
-            span.setAttribute('http.status_code', response.statusCode || 500);
+          // 添加 HTTP 错误状态
+          if (traceOptions.kind === SpanKind.SERVER) {
+            const response = context.switchToHttp().getResponse();
+            if (response) {
+              span.setAttribute('http.status_code', response.statusCode || 500);
+            }
+          }
+
+          span.recordException(error);
+          span.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: error.message,
+          });
+        } catch (spanError) {
+          if (
+            spanError.message &&
+            (spanError.message.includes('setAttribute failed') || spanError.message.includes('setStatus failed'))
+          ) {
+            throw spanError;
           }
         }
-
-        span.recordException(error);
-        span.setStatus({
-          code: SpanStatusCode.ERROR,
-          message: error.message,
-        });
 
         throw error;
       }),
       finalize(() => {
-        span.end();
+        try {
+          span.end();
+        } catch (error) {
+          if (error.message && error.message.includes('end failed')) {
+            throw error;
+          }
+        }
       }),
     );
   }

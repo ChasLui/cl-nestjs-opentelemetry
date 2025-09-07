@@ -62,6 +62,36 @@ describe('TracingInterceptor', () => {
   });
 
   describe('intercept', () => {
+    it('应该在 Reflector 为 undefined 时直接继续并输出警告', () => {
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const interceptorWithoutReflector = new TracingInterceptor(tracingService, undefined as any);
+      mockCallHandler.handle = vi.fn().mockReturnValue(of('result'));
+
+      const result$ = interceptorWithoutReflector.intercept(mockContext, mockCallHandler);
+      result$.subscribe();
+
+      expect(consoleSpy).toHaveBeenCalledWith('TracingInterceptor: Reflector not available, skipping tracing');
+      expect(mockCallHandler.handle).toHaveBeenCalled();
+      expect(tracingService.startSpan).not.toHaveBeenCalled();
+
+      consoleSpy.mockRestore();
+    });
+
+    it('应该在 Reflector 为 null 时直接继续并输出警告', () => {
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const interceptorWithoutReflector = new TracingInterceptor(tracingService, null as any);
+      mockCallHandler.handle = vi.fn().mockReturnValue(of('result'));
+
+      const result$ = interceptorWithoutReflector.intercept(mockContext, mockCallHandler);
+      result$.subscribe();
+
+      expect(consoleSpy).toHaveBeenCalledWith('TracingInterceptor: Reflector not available, skipping tracing');
+      expect(mockCallHandler.handle).toHaveBeenCalled();
+      expect(tracingService.startSpan).not.toHaveBeenCalled();
+
+      consoleSpy.mockRestore();
+    });
+
     it('应该在没有元数据时直接继续', () => {
       reflector.get = vi.fn().mockReturnValue(null);
       mockCallHandler.handle = vi.fn().mockReturnValue(of('result'));
@@ -529,6 +559,192 @@ describe('TracingInterceptor', () => {
       });
 
       expect(mockSpan.setAttribute).toHaveBeenCalledWith('http.status_code', 500);
+    });
+
+    it('应该处理 TracingService 为 null 的情况', () => {
+      const traceOptions = {
+        originalMethodName: 'testMethod',
+      };
+
+      reflector.get = vi.fn().mockReturnValue(traceOptions);
+      mockCallHandler.handle = vi.fn().mockReturnValue(of('result'));
+      const interceptorWithoutTracingService = new TracingInterceptor(null as any, reflector);
+
+      expect(() => {
+        const result$ = interceptorWithoutTracingService.intercept(mockContext, mockCallHandler);
+        result$.subscribe();
+      }).toThrow();
+    });
+
+    it('应该处理 span 创建失败的情况', () => {
+      const traceOptions = {
+        originalMethodName: 'testMethod',
+      };
+
+      reflector.get = vi.fn().mockReturnValue(traceOptions);
+      mockCallHandler.handle = vi.fn().mockReturnValue(of('result'));
+      tracingService.startSpan = vi.fn().mockImplementation(() => {
+        throw new Error('Span creation failed');
+      });
+
+      expect(() => {
+        const result$ = interceptor.intercept(mockContext, mockCallHandler);
+        result$.subscribe();
+      }).toThrow('Span creation failed');
+    });
+
+    it('应该处理 context.getClass 返回 null 的情况', () => {
+      const traceOptions = {
+        originalMethodName: 'testMethod',
+      };
+
+      reflector.get = vi.fn().mockReturnValue(traceOptions);
+      mockCallHandler.handle = vi.fn().mockReturnValue(of('result'));
+      mockContext.getClass = vi.fn().mockReturnValue(null);
+
+      expect(() => {
+        const result$ = interceptor.intercept(mockContext, mockCallHandler);
+        result$.subscribe();
+      }).toThrow();
+    });
+
+    it('应该处理 context.getHandler 返回 null 的情况', () => {
+      reflector.get = vi.fn().mockReturnValue(null);
+      mockCallHandler.handle = vi.fn().mockReturnValue(of('result'));
+      mockContext.getHandler = vi.fn().mockReturnValue(null);
+
+      const result$ = interceptor.intercept(mockContext, mockCallHandler);
+      result$.subscribe();
+
+      expect(reflector.get).toHaveBeenCalledWith(TRACE_METADATA_KEY, null);
+      expect(mockCallHandler.handle).toHaveBeenCalled();
+    });
+
+    it('应该处理 switchToHttp 抛出异常的情况', () => {
+      const traceOptions = {
+        kind: SpanKind.SERVER,
+        originalMethodName: 'testMethod',
+      };
+
+      reflector.get = vi.fn().mockReturnValue(traceOptions);
+      mockCallHandler.handle = vi.fn().mockReturnValue(of('result'));
+      mockContext.switchToHttp = vi.fn().mockImplementation(() => {
+        throw new Error('Not an HTTP context');
+      });
+
+      expect(() => {
+        const result$ = interceptor.intercept(mockContext, mockCallHandler);
+        result$.subscribe();
+      }).toThrow('Not an HTTP context');
+    });
+
+    it('应该处理 span.setAttribute 抛出异常的情况', () => {
+      const traceOptions = {
+        originalMethodName: 'testMethod',
+      };
+
+      reflector.get = vi.fn().mockReturnValue(traceOptions);
+      mockCallHandler.handle = vi.fn().mockReturnValue(of('result'));
+      mockSpan.setAttribute = vi.fn().mockImplementation(() => {
+        throw new Error('setAttribute failed');
+      });
+
+      const result$ = interceptor.intercept(mockContext, mockCallHandler);
+      result$.subscribe({
+        next: () => {},
+        error: (error) => {
+          expect(error.message).toBe('setAttribute failed');
+        },
+      });
+    });
+
+    it('应该处理 span.setStatus 抛出异常的情况', () => {
+      const traceOptions = {
+        originalMethodName: 'testMethod',
+      };
+
+      reflector.get = vi.fn().mockReturnValue(traceOptions);
+      mockCallHandler.handle = vi.fn().mockReturnValue(of('result'));
+      mockSpan.setStatus = vi.fn().mockImplementation(() => {
+        throw new Error('setStatus failed');
+      });
+
+      const result$ = interceptor.intercept(mockContext, mockCallHandler);
+      result$.subscribe({
+        next: () => {},
+        error: (error) => {
+          expect(error.message).toBe('setStatus failed');
+        },
+      });
+    });
+
+    it('应该处理 span.end 抛出异常的情况', () => {
+      const traceOptions = {
+        originalMethodName: 'testMethod',
+      };
+
+      reflector.get = vi.fn().mockReturnValue(traceOptions);
+      mockCallHandler.handle = vi.fn().mockReturnValue(of('result'));
+      mockSpan.end = vi.fn().mockImplementation(() => {
+        throw new Error('end failed');
+      });
+
+      const result$ = interceptor.intercept(mockContext, mockCallHandler);
+      result$.subscribe({
+        next: () => {},
+        error: (error) => {
+          expect(error.message).toBe('end failed');
+        },
+      });
+    });
+
+    it('应该处理极大参数数组的情况', () => {
+      const traceOptions = {
+        recordArgs: true,
+        originalMethodName: 'testMethod',
+      };
+
+      reflector.get = vi.fn().mockReturnValue(traceOptions);
+      // 创建一个包含1000个参数的数组
+      const largeArgs = new Array(1000).fill(0).map((_, i) => `arg${i}`);
+      mockContext.getArgs = vi.fn().mockReturnValue(largeArgs);
+      mockCallHandler.handle = vi.fn().mockReturnValue(of('result'));
+
+      const result$ = interceptor.intercept(mockContext, mockCallHandler);
+      result$.subscribe();
+
+      expect(tracingService.startSpan).toHaveBeenCalled();
+      expect(mockSpan.end).toHaveBeenCalled();
+    });
+
+    it('应该处理循环引用的复杂对象', () => {
+      const traceOptions = {
+        recordArgs: true,
+        originalMethodName: 'testMethod',
+      };
+
+      reflector.get = vi.fn().mockReturnValue(traceOptions);
+      // 创建循环引用对象
+      const circularObj: any = { name: 'test' };
+      circularObj.self = circularObj;
+      mockContext.getArgs = vi.fn().mockReturnValue([circularObj]);
+      mockCallHandler.handle = vi.fn().mockReturnValue(of('result'));
+
+      expect(() => {
+        const result$ = interceptor.intercept(mockContext, mockCallHandler);
+        result$.subscribe();
+      }).toThrow(); // JSON.stringify 会抛出循环引用错误
+    });
+
+    it('应该处理 reflector.get 抛出异常的情况', () => {
+      reflector.get = vi.fn().mockImplementation(() => {
+        throw new Error('Reflector error');
+      });
+      mockCallHandler.handle = vi.fn().mockReturnValue(of('result'));
+
+      expect(() => {
+        interceptor.intercept(mockContext, mockCallHandler);
+      }).toThrow('Reflector error');
     });
   });
 });

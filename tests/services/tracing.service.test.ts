@@ -638,5 +638,205 @@ describe('TracingService', () => {
       expect(tracingService.getCurrentTraceId()).toBeUndefined();
       expect(tracingService.getCurrentSpanId()).toBeUndefined();
     });
+
+    it('应该处理 null 配置', () => {
+      expect(() => {
+        new TracingService(null as any);
+      }).toThrow();
+    });
+
+    it('应该处理 undefined 配置', () => {
+      expect(() => {
+        new TracingService(undefined as any);
+      }).toThrow();
+    });
+
+    it('应该处理没有 tracing 属性的配置', () => {
+      const configWithoutTracing = {
+        serviceName: 'test-service',
+        serviceVersion: '1.0.0',
+        environment: 'test',
+      } as any;
+
+      const service = new TracingService(configWithoutTracing);
+      const span = service.startSpan('test-span');
+
+      expect(span).not.toBeNull();
+      expect(trace.getTracer).toHaveBeenCalled();
+    });
+
+    it('应该处理没有 serviceName 的配置', () => {
+      const configWithoutServiceName = {
+        serviceVersion: '1.0.0',
+        environment: 'test',
+        tracing: { enabled: true, sampleRate: 1.0 },
+      } as any;
+
+      // 这个测试应该不会抛出异常，因为 serviceName 会是 undefined，但 getTracer 仍然可以处理
+      const service = new TracingService(configWithoutServiceName);
+      expect(service).toBeDefined();
+      expect(trace.getTracer).toHaveBeenCalledWith(undefined, '1.0.0');
+    });
+
+    it('应该处理没有 serviceVersion 的配置', () => {
+      const configWithoutVersion = {
+        serviceName: 'test-service',
+        environment: 'test',
+        tracing: { enabled: true, sampleRate: 1.0 },
+      } as any;
+
+      const service = new TracingService(configWithoutVersion);
+      const span = service.startSpan('test-span');
+
+      expect(span).not.toBeNull();
+      expect(trace.getTracer).toHaveBeenCalledWith('test-service', '1.0.0');
+    });
+
+    it('应该处理 getTracer 抛出异常的情况', () => {
+      (trace.getTracer as MockedFunction<typeof trace.getTracer>).mockImplementation(() => {
+        throw new Error('Tracer creation failed');
+      });
+
+      expect(() => {
+        new TracingService(DEFAULT_OPENTELEMETRY_CONFIG);
+      }).toThrow('Tracer creation failed');
+    });
+
+    it('应该处理 startSpan 抛出异常的情况', () => {
+      mockTracer.startSpan.mockImplementation(() => {
+        throw new Error('Span creation failed');
+      });
+
+      expect(() => {
+        tracingService.startSpan('test-span');
+      }).toThrow('Span creation failed');
+    });
+
+    it('应该处理空字符串 span 名称', () => {
+      mockTracer.startSpan.mockReturnValue(mockSpan);
+
+      const span = tracingService.startSpan('');
+
+      expect(mockTracer.startSpan).toHaveBeenCalledWith('', {
+        attributes: {},
+        kind: SpanKind.INTERNAL,
+      });
+      expect(span).toBe(mockSpan);
+    });
+
+    it('应该处理非常长的 span 名称', () => {
+      mockTracer.startSpan.mockReturnValue(mockSpan);
+      const longSpanName = 'a'.repeat(10000);
+
+      const span = tracingService.startSpan(longSpanName);
+
+      expect(mockTracer.startSpan).toHaveBeenCalledWith(longSpanName, {
+        attributes: {},
+        kind: SpanKind.INTERNAL,
+      });
+      expect(span).toBe(mockSpan);
+    });
+
+    it('应该处理包含特殊字符的 span 名称', () => {
+      mockTracer.startSpan.mockReturnValue(mockSpan);
+      const specialSpanName = 'span-with-special-chars!@#$%^&*()[]{}|;:,.<>?/`~+=\\';
+
+      const span = tracingService.startSpan(specialSpanName);
+
+      expect(mockTracer.startSpan).toHaveBeenCalledWith(specialSpanName, {
+        attributes: {},
+        kind: SpanKind.INTERNAL,
+      });
+      expect(span).toBe(mockSpan);
+    });
+
+    it('应该处理包含 Unicode 字符的 span 名称', () => {
+      mockTracer.startSpan.mockReturnValue(mockSpan);
+      const unicodeSpanName = '测试-span-🚀-emoji-ñáéíóú';
+
+      const span = tracingService.startSpan(unicodeSpanName);
+
+      expect(mockTracer.startSpan).toHaveBeenCalledWith(unicodeSpanName, {
+        attributes: {},
+        kind: SpanKind.INTERNAL,
+      });
+      expect(span).toBe(mockSpan);
+    });
+
+    it('应该处理极大的属性对象', () => {
+      mockTracer.startSpan.mockReturnValue(mockSpan);
+      const largeAttributes: Record<string, any> = {};
+      for (let i = 0; i < 1000; i++) {
+        largeAttributes[`key${i}`] = `value${i}`;
+      }
+
+      const span = tracingService.startSpan('test-span', {
+        attributes: largeAttributes,
+      });
+
+      expect(mockTracer.startSpan).toHaveBeenCalledWith('test-span', {
+        attributes: largeAttributes,
+        kind: SpanKind.INTERNAL,
+      });
+      expect(span).toBe(mockSpan);
+    });
+
+    it('应该处理循环引用的属性对象', () => {
+      mockTracer.startSpan.mockReturnValue(mockSpan);
+      const circularObj: any = { name: 'test' };
+      circularObj.self = circularObj;
+
+      // 这应该不会抛出错误，因为 OpenTelemetry 会处理序列化
+      const span = tracingService.startSpan('test-span', {
+        attributes: { circular: circularObj },
+      });
+
+      expect(mockTracer.startSpan).toHaveBeenCalledWith('test-span', {
+        attributes: { circular: circularObj },
+        kind: SpanKind.INTERNAL,
+      });
+      expect(span).toBe(mockSpan);
+    });
+
+    it('应该处理 null 属性值', () => {
+      mockTracer.startSpan.mockReturnValue(mockSpan);
+
+      const span = tracingService.startSpan('test-span', {
+        attributes: {
+          nullValue: null,
+          undefinedValue: undefined,
+          emptyString: '',
+          zero: 0,
+          false: false,
+        } as any,
+      });
+
+      expect(mockTracer.startSpan).toHaveBeenCalledWith('test-span', {
+        attributes: {
+          nullValue: null,
+          undefinedValue: undefined,
+          emptyString: '',
+          zero: 0,
+          false: false,
+        },
+        kind: SpanKind.INTERNAL,
+      });
+      expect(span).toBe(mockSpan);
+    });
+
+    it('应该处理所有 SpanKind 类型', () => {
+      mockTracer.startSpan.mockReturnValue(mockSpan);
+
+      const spanKinds = [SpanKind.INTERNAL, SpanKind.SERVER, SpanKind.CLIENT, SpanKind.PRODUCER, SpanKind.CONSUMER];
+
+      spanKinds.forEach((kind) => {
+        const span = tracingService.startSpan(`test-span-${kind}`, { kind });
+        expect(mockTracer.startSpan).toHaveBeenCalledWith(`test-span-${kind}`, {
+          kind,
+          attributes: {},
+        });
+        expect(span).toBe(mockSpan);
+      });
+    });
   });
 });

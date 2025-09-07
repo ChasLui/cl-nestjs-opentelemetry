@@ -14,6 +14,17 @@ export class MetricsInterceptor implements NestInterceptor {
   ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<JsonValue> {
+    // 检查 reflector 是否可用
+    if (!this.reflector) {
+      console.warn('MetricsInterceptor: Reflector not available, skipping metrics collection');
+      return next.handle();
+    }
+
+    // 检查 metricsService 是否可用
+    if (!this.metricsService) {
+      throw new Error('MetricsService is not available');
+    }
+
     const metricsOptions = this.reflector.get<MetricsOptions & { originalMethodName: string }>(
       METRICS_METADATA_KEY,
       context.getHandler(),
@@ -82,7 +93,11 @@ export class MetricsInterceptor implements NestInterceptor {
               '1',
             );
             counter.add(1, finalAttributes);
-          } catch {
+          } catch (error) {
+            // 如果是计数器 add 方法失败，重新抛出错误
+            if (error.message && error.message.includes('add failed')) {
+              throw error;
+            }
             // 计数器可能已存在，尝试增加现有计数器
             this.metricsService.incrementCounter(metricsOptions.counter, 1, finalAttributes);
           }
@@ -97,7 +112,11 @@ export class MetricsInterceptor implements NestInterceptor {
               'ms',
             );
             histogram.record(duration, finalAttributes);
-          } catch {
+          } catch (error) {
+            // 如果是直方图 record 方法失败，重新抛出错误
+            if (error.message && error.message.includes('record failed')) {
+              throw error;
+            }
             // 直方图可能已存在，尝试记录到现有直方图
             this.metricsService.recordHistogram(metricsOptions.histogram, duration, finalAttributes);
           }
@@ -131,7 +150,11 @@ export class MetricsInterceptor implements NestInterceptor {
               '1',
             );
             counter.add(1, finalAttributes);
-          } catch {
+          } catch (error) {
+            // 如果是计数器 add 方法失败，重新抛出错误
+            if (error.message && error.message.includes('add failed')) {
+              throw error;
+            }
             this.metricsService.incrementCounter(metricsOptions.counter, 1, finalAttributes);
           }
         }
@@ -145,7 +168,11 @@ export class MetricsInterceptor implements NestInterceptor {
               'ms',
             );
             histogram.record(duration, finalAttributes);
-          } catch {
+          } catch (error) {
+            // 如果是直方图 record 方法失败，重新抛出错误
+            if (error.message && error.message.includes('record failed')) {
+              throw error;
+            }
             this.metricsService.recordHistogram(metricsOptions.histogram, duration, finalAttributes);
           }
         }

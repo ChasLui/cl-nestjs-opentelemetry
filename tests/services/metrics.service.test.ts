@@ -493,5 +493,303 @@ describe('MetricsService', () => {
         metricsService.recordBusinessEvent('', 0);
       }).not.toThrow();
     });
+
+    it('应该处理 null 配置', () => {
+      expect(() => {
+        new MetricsService(null as any);
+      }).toThrow();
+    });
+
+    it('应该处理 undefined 配置', () => {
+      expect(() => {
+        new MetricsService(undefined as any);
+      }).toThrow();
+    });
+
+    it('应该处理没有 metrics 属性的配置', () => {
+      const configWithoutMetrics = {
+        serviceName: 'test-service',
+        serviceVersion: '1.0.0',
+        environment: 'test',
+      } as any;
+
+      const service = new MetricsService(configWithoutMetrics);
+      const counter = service.createCounter('test-counter', 'Test counter');
+
+      expect(counter).toBe(mockCounter);
+      expect(metrics.getMeter).toHaveBeenCalled();
+    });
+
+    it('应该处理没有 serviceName 的配置', () => {
+      const configWithoutServiceName = {
+        serviceVersion: '1.0.0',
+        environment: 'test',
+        metrics: { enabled: true, interval: 30000 },
+      } as any;
+
+      // 这个测试应该不会抛出异常，因为 serviceName 会是 undefined，但 getMeter 仍然可以处理
+      const service = new MetricsService(configWithoutServiceName);
+      expect(service).toBeDefined();
+      expect(metrics.getMeter).toHaveBeenCalledWith(undefined, '1.0.0');
+    });
+
+    it('应该处理没有 serviceVersion 的配置', () => {
+      const configWithoutVersion = {
+        serviceName: 'test-service',
+        environment: 'test',
+        metrics: { enabled: true, interval: 30000 },
+      } as any;
+
+      const service = new MetricsService(configWithoutVersion);
+      const counter = service.createCounter('test-counter', 'Test counter');
+
+      expect(counter).toBe(mockCounter);
+      expect(metrics.getMeter).toHaveBeenCalledWith('test-service', '1.0.0');
+    });
+
+    it('应该处理 getMeter 抛出异常的情况', () => {
+      (metrics.getMeter as MockedFunction<typeof metrics.getMeter>).mockImplementation(() => {
+        throw new Error('Meter creation failed');
+      });
+
+      expect(() => {
+        new MetricsService(DEFAULT_OPENTELEMETRY_CONFIG);
+      }).toThrow('Meter creation failed');
+    });
+
+    it('应该处理 createCounter 抛出异常的情况', () => {
+      mockMeter.createCounter.mockImplementation(() => {
+        throw new Error('Counter creation failed');
+      });
+
+      expect(() => {
+        metricsService.createCounter('test-counter', 'Test counter');
+      }).toThrow('Counter creation failed');
+    });
+
+    it('应该处理 createHistogram 抛出异常的情况', () => {
+      mockMeter.createHistogram.mockImplementation(() => {
+        throw new Error('Histogram creation failed');
+      });
+
+      expect(() => {
+        metricsService.createHistogram('test-histogram', 'Test histogram');
+      }).toThrow('Histogram creation failed');
+    });
+
+    it('应该处理 createGauge 抛出异常的情况', () => {
+      mockMeter.createGauge.mockImplementation(() => {
+        throw new Error('Gauge creation failed');
+      });
+
+      expect(() => {
+        metricsService.createGauge('test-gauge', 'Test gauge');
+      }).toThrow('Gauge creation failed');
+    });
+
+    it('应该处理空字符串指标名称', () => {
+      const counter = metricsService.createCounter('', 'Empty name counter');
+
+      expect(mockMeter.createCounter).toHaveBeenCalledWith('', {
+        description: 'Empty name counter',
+        unit: '1',
+      });
+      expect(counter).toBe(mockCounter);
+    });
+
+    it('应该处理非常长的指标名称', () => {
+      const longName = 'a'.repeat(10000);
+      const counter = metricsService.createCounter(longName, 'Long name counter');
+
+      expect(mockMeter.createCounter).toHaveBeenCalledWith(longName, {
+        description: 'Long name counter',
+        unit: '1',
+      });
+      expect(counter).toBe(mockCounter);
+    });
+
+    it('应该处理包含特殊字符的指标名称', () => {
+      const specialName = 'metric-with-special-chars!@#$%^&*()[]{}|;:,.<>?/`~+=\\';
+      const counter = metricsService.createCounter(specialName, 'Special chars counter');
+
+      expect(mockMeter.createCounter).toHaveBeenCalledWith(specialName, {
+        description: 'Special chars counter',
+        unit: '1',
+      });
+      expect(counter).toBe(mockCounter);
+    });
+
+    it('应该处理包含 Unicode 字符的指标名称', () => {
+      const unicodeName = '测试-metric-🚀-emoji-ñáéíóú';
+      const counter = metricsService.createCounter(unicodeName, 'Unicode counter');
+
+      expect(mockMeter.createCounter).toHaveBeenCalledWith(unicodeName, {
+        description: 'Unicode counter',
+        unit: '1',
+      });
+      expect(counter).toBe(mockCounter);
+    });
+
+    it('应该处理极大的属性对象', () => {
+      const largeAttributes: Record<string, any> = {};
+      for (let i = 0; i < 1000; i++) {
+        largeAttributes[`key${i}`] = `value${i}`;
+      }
+
+      const counter = metricsService.createCounter('test-counter', 'Test counter');
+      counter.add(1, largeAttributes);
+
+      expect(mockCounter.add).toHaveBeenCalledWith(1, largeAttributes);
+    });
+
+    it('应该处理循环引用的属性对象', () => {
+      const circularObj: any = { name: 'test' };
+      circularObj.self = circularObj;
+
+      const counter = metricsService.createCounter('test-counter', 'Test counter');
+      counter.add(1, { circular: circularObj });
+
+      expect(mockCounter.add).toHaveBeenCalledWith(1, { circular: circularObj });
+    });
+
+    it('应该处理 null 属性值', () => {
+      const counter = metricsService.createCounter('test-counter', 'Test counter');
+      counter.add(1, {
+        nullValue: null,
+        undefinedValue: undefined,
+        emptyString: '',
+        zero: 0,
+        false: false,
+      } as any);
+
+      expect(mockCounter.add).toHaveBeenCalledWith(1, {
+        nullValue: null,
+        undefinedValue: undefined,
+        emptyString: '',
+        zero: 0,
+        false: false,
+      });
+    });
+
+    it('应该处理极值数字', () => {
+      const counter = metricsService.createCounter('test-counter', 'Test counter');
+      const histogram = metricsService.createHistogram('test-histogram', 'Test histogram');
+
+      const extremeValues = [
+        Number.MAX_SAFE_INTEGER,
+        Number.MIN_SAFE_INTEGER,
+        Number.POSITIVE_INFINITY,
+        Number.NEGATIVE_INFINITY,
+        Number.NaN,
+        0,
+        -0,
+        3.141592653589793,
+        1e-10,
+        1e10,
+      ];
+
+      extremeValues.forEach((value) => {
+        counter.add(value);
+        histogram.record(value);
+      });
+
+      extremeValues.forEach((value) => {
+        expect(mockCounter.add).toHaveBeenCalledWith(value);
+        expect(mockHistogram.record).toHaveBeenCalledWith(value);
+      });
+    });
+
+    it('应该处理计数器 add 方法抛出异常的情况', () => {
+      mockCounter.add.mockImplementation(() => {
+        throw new Error('Counter add failed');
+      });
+
+      const counter = metricsService.createCounter('test-counter', 'Test counter');
+
+      expect(() => {
+        counter.add(1);
+      }).toThrow('Counter add failed');
+
+      // 重置 mock 以避免影响后续测试
+      mockCounter.add.mockReset();
+      mockCounter.add.mockImplementation(() => {});
+    });
+
+    it('应该处理直方图 record 方法抛出异常的情况', () => {
+      mockHistogram.record.mockImplementation(() => {
+        throw new Error('Histogram record failed');
+      });
+
+      const histogram = metricsService.createHistogram('test-histogram', 'Test histogram');
+
+      expect(() => {
+        histogram.record(100);
+      }).toThrow('Histogram record failed');
+
+      // 重置 mock 以避免影响后续测试
+      mockHistogram.record.mockReset();
+      mockHistogram.record.mockImplementation(() => {});
+    });
+
+    it('应该处理仪表 record 方法抛出异常的情况', () => {
+      mockGauge.record.mockImplementation(() => {
+        throw new Error('Gauge record failed');
+      });
+
+      const gauge = metricsService.createGauge('test-gauge', 'Test gauge');
+
+      expect(() => {
+        gauge.record(50);
+      }).toThrow('Gauge record failed');
+
+      // 重置 mock 以避免影响后续测试
+      mockGauge.record.mockReset();
+      mockGauge.record.mockImplementation(() => {});
+    });
+
+    it('应该处理包含特殊字符的属性键和值', () => {
+      // 重置 mock 以避免之前测试的影响
+      vi.clearAllMocks();
+      mockMeter.createCounter.mockReturnValue(mockCounter);
+
+      const counter = metricsService.createCounter('test-counter', 'Test counter');
+
+      const specialAttributes = {
+        'key with spaces': 'value with spaces',
+        'key\nwith\nnewlines': 'value\nwith\nnewlines',
+        'key\twith\ttabs': 'value\twith\ttabs',
+        'key"with"quotes': 'value"with"quotes',
+        "key'with'quotes": "value'with'quotes",
+        'key\\with\\backslashes': 'value\\with\\backslashes',
+        'key/with/slashes': 'value/with/slashes',
+        'key@with@symbols': 'value@with@symbols',
+        'key#with#hash': 'value#with#hash',
+        key$with$dollar: 'value$with$dollar',
+        测试键: '测试值',
+        '🚀emoji🚀': '🔥fire🔥',
+      };
+
+      counter.add(1, specialAttributes);
+
+      expect(mockCounter.add).toHaveBeenCalledWith(1, specialAttributes);
+    });
+
+    it('应该处理非常长的属性键和值', () => {
+      // 重置 mock 以避免之前测试的影响
+      vi.clearAllMocks();
+      mockMeter.createCounter.mockReturnValue(mockCounter);
+
+      const counter = metricsService.createCounter('test-counter', 'Test counter');
+      const longKey = 'k'.repeat(1000);
+      const longValue = 'v'.repeat(1000);
+
+      const attributes = {
+        [longKey]: longValue,
+      };
+
+      counter.add(1, attributes);
+
+      expect(mockCounter.add).toHaveBeenCalledWith(1, attributes);
+    });
   });
 });

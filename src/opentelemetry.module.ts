@@ -35,13 +35,21 @@ export class OpenTelemetryModule {
         MetricsService,
         TracingService,
         OpenTelemetryService,
+        TracingInterceptor,
+        MetricsInterceptor,
         {
           provide: APP_INTERCEPTOR,
-          useClass: TracingInterceptor,
+          useFactory: (tracingService: TracingService, reflector: Reflector) => {
+            return new TracingInterceptor(tracingService, reflector);
+          },
+          inject: [TracingService, Reflector],
         },
         {
           provide: APP_INTERCEPTOR,
-          useClass: MetricsInterceptor,
+          useFactory: (metricsService: MetricsService, reflector: Reflector) => {
+            return new MetricsInterceptor(metricsService, reflector);
+          },
+          inject: [MetricsService, Reflector],
         },
       ],
       exports: [EnhancedWinstonLoggerService, MetricsService, TracingService, OpenTelemetryService],
@@ -65,13 +73,21 @@ export class OpenTelemetryModule {
         MetricsService,
         TracingService,
         OpenTelemetryService,
+        TracingInterceptor,
+        MetricsInterceptor,
         {
           provide: APP_INTERCEPTOR,
-          useClass: TracingInterceptor,
+          useFactory: (tracingService: TracingService, reflector: Reflector) => {
+            return new TracingInterceptor(tracingService, reflector);
+          },
+          inject: [TracingService, Reflector],
         },
         {
           provide: APP_INTERCEPTOR,
-          useClass: MetricsInterceptor,
+          useFactory: (metricsService: MetricsService, reflector: Reflector) => {
+            return new MetricsInterceptor(metricsService, reflector);
+          },
+          inject: [MetricsService, Reflector],
         },
       ],
       exports: [EnhancedWinstonLoggerService, MetricsService, TracingService, OpenTelemetryService],
